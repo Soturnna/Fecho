@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <ntsecapi.h>
 #include <sspi.h>
+#include <security.h>
 #include <credentialprovider.h>
 
 // Empacota usuário/domínio/senha no formato que o Windows espera para um
