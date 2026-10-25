@@ -58,6 +58,8 @@ public static class ErrorCodes
     public const string Failed = "falhou";
     /// <summary>Muitos comandos em pouco tempo.</summary>
     public const string RateLimited = "devagar";
+    /// <summary>Precisa confirmar com Face ID antes de abrir as pastas do PC.</summary>
+    public const string NeedsGrant = "permissao";
 }
 
 public enum AuthLevel
@@ -103,6 +105,15 @@ public static class CommandPolicy
         ["mouse.scroll"] = new(AuthLevel.Control, true),
         ["key"] = new(AuthLevel.Control, true),
         ["text"] = new(AuthLevel.Control, true),
+
+        // Arquivos (docs/SEGURANCA.md, seção 9)
+        ["files.grant"] = new(AuthLevel.Unlock, false),
+        ["files.roots"] = new(AuthLevel.Control, true),
+        ["files.list"] = new(AuthLevel.Control, true),
+        ["files.read"] = new(AuthLevel.Control, true),
+        ["files.upload.begin"] = new(AuthLevel.Control, false),
+        ["files.upload.chunk"] = new(AuthLevel.Control, true),
+        ["files.upload.end"] = new(AuthLevel.Control, true),
     };
 
     public static CommandRule? Get(string cmd) => Rules.TryGetValue(cmd, out var r) ? r : null;

@@ -317,6 +317,200 @@ public static class Tests
         catch (CommandException ex) when (ex.Code == ErrorCodes.Unavailable) { }
     }
 
+    // ---------- Arquivos ----------
+
+    private sealed class FileHarness : IDisposable
+    {
+        public string Base { get; } = Path.Combine(Path.GetTempPath(), "fecho-teste-" + Guid.NewGuid().ToString("N"));
+        public string Docs => Path.Combine(Base, "Documentos");
+        public string Secret => Path.Combine(Base, "Segredo");
+        public string Uploads => Path.Combine(Base, "Downloads", "Fecho");
+        public Harness H { get; }
+        public FileService Files { get; }
+        public CommandDispatcher Dispatcher { get; }
+        public ConnectionState Conn { get; } = new();
+
+        public FileHarness()
+        {
+            Directory.CreateDirectory(Path.Combine(Docs, "Projetos"));
+            Directory.CreateDirectory(Secret);
+            File.WriteAllText(Path.Combine(Docs, "nota.txt"), "olá do PC");
+            File.WriteAllText(Path.Combine(Docs, ".escondido"), "x");
+            File.WriteAllText(Path.Combine(Secret, "senhas.txt"), "não pode sair");
+            H = new Harness();
+            Files = new FileService(new Dictionary<string, (string, string)> { ["documents"] = ("Documentos", Docs) }, Uploads);
+            Dispatcher = new CommandDispatcher(H.Actions, H.Audit, Files, H.Clock);
+        }
+
+        public object? Run(string cmd, object args, ECDsa? key = null)
+        {
+            var r = H.Auth.Authenticate(H.Device.Signed(cmd, args, key: key), Conn);
+            if (!r.Ok) throw new Exception($"{cmd}: autenticação recusada ({r.Reason})");
+            return Dispatcher.Execute(r.Payload!, r.Device!, Conn);
+        }
+
+        public string ErrorOf(string cmd, object args, ECDsa? key = null)
+        {
+            try { Run(cmd, args, key); return "nenhum"; }
+            catch (CommandException ex) { return ex.Code; }
+        }
+
+        public void Grant()
+        {
+            H.Clock.NowMs += 1_000;
+            Run("files.grant", new { }, H.Device.UnlockKey);
+        }
+
+        public void Dispose()
+        {
+            Conn.Release();
+            try { Directory.Delete(Base, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    public static void T_pastas_do_pc_exigem_face_id()
+    {
+        using var f = new FileHarness();
+        Assert(f.ErrorOf("files.list", new { root = "documents", path = "" }) == ErrorCodes.NeedsGrant, "listou sem Face ID");
+        var r = f.H.Auth.Authenticate(f.H.Device.Signed("files.grant", new { }, key: f.H.Device.ControlKey), f.Conn);
+        Assert(!r.Ok, "permissão concedida com a chave de controle");
+        f.Grant();
+        var list = (List<FileEntry>)f.Run("files.list", new { root = "documents", path = "" })!;
+        Assert(list.Any(e => e.Name == "nota.txt") && list.Any(e => e.Name == "Projetos" && e.Dir), "listagem incompleta");
+        Assert(list.All(e => !e.Name.StartsWith('.')), "arquivo oculto apareceu");
+    }
+
+    public static void T_permissao_de_arquivos_expira_em_10_minutos()
+    {
+        using var f = new FileHarness();
+        f.Grant();
+        f.H.Clock.NowMs += (long)CommandDispatcher.FilesGrantDuration.TotalMilliseconds + 1_000;
+        Assert(f.ErrorOf("files.list", new { root = "documents", path = "" }) == ErrorCodes.NeedsGrant, "permissão não expirou");
+    }
+
+    public static void T_permissao_de_arquivos_nao_passa_para_outra_conexao()
+    {
+        using var f = new FileHarness();
+        f.Grant();
+        var outra = new ConnectionState();
+        var r = f.H.Auth.Authenticate(f.H.Device.Signed("files.list", new { root = "documents", path = "" }), outra);
+        try
+        {
+            f.Dispatcher.Execute(r.Payload!, r.Device!, outra);
+            throw new Exception("outra conexão herdou a permissão");
+        }
+        catch (CommandException ex) when (ex.Code == ErrorCodes.NeedsGrant) { }
+    }
+
+    public static void T_caminhos_que_tentam_sair_da_pasta_sao_recusados()
+    {
+        using var f = new FileHarness();
+        f.Grant();
+        foreach (var bad in new[] { "..", "../Segredo", "Projetos/../../Segredo/senhas.txt", "/etc/passwd",
+                                    "Projetos//nota.txt", "..\\Segredo", "C:\\Windows", ".escondido", "nota.txt ", "Projetos/." })
+        {
+            Assert(f.ErrorOf("files.read", new { root = "documents", path = bad, offset = 0, length = 100 }) == ErrorCodes.Invalid,
+                $"caminho aceito: {bad}");
+        }
+        Assert(f.ErrorOf("files.list", new { root = "sistema", path = "" }) == ErrorCodes.Invalid, "raiz inventada aceita");
+    }
+
+    public static void T_atalho_para_fora_da_pasta_e_recusado()
+    {
+        using var f = new FileHarness();
+        var link = Path.Combine(f.Docs, "atalho");
+        try { Directory.CreateSymbolicLink(link, f.Secret); }
+        catch (Exception) { return; } // sem permissão para criar link neste sistema: teste não se aplica
+        f.Grant();
+        Assert(f.ErrorOf("files.read", new { root = "documents", path = "atalho/senhas.txt", offset = 0, length = 100 }) == ErrorCodes.Invalid,
+            "atalho deixou sair da pasta");
+        var list = (List<FileEntry>)f.Run("files.list", new { root = "documents", path = "" })!;
+        Assert(list.All(e => e.Name != "atalho"), "atalho apareceu na listagem");
+    }
+
+    public static void T_leitura_de_arquivo_em_blocos()
+    {
+        using var f = new FileHarness();
+        f.Grant();
+        var json = JsonSerializer.Serialize(f.Run("files.read", new { root = "documents", path = "nota.txt", offset = 0, length = 4 }));
+        var doc = JsonDocument.Parse(json).RootElement;
+        Assert(Convert.FromBase64String(doc.GetProperty("data").GetString()!).Length == 4, "bloco de tamanho errado");
+        Assert(!doc.GetProperty("eof").GetBoolean(), "fim de arquivo cedo demais");
+    }
+
+    private static string Upload(FileHarness f, string name, byte[] content, byte[]? hashOverride = null)
+    {
+        var begin = JsonDocument.Parse(JsonSerializer.Serialize(f.Run("files.upload.begin", new { name, size = content.Length }))).RootElement;
+        var id = begin.GetProperty("id").GetString()!;
+        for (var off = 0; off < content.Length; off += 10)
+        {
+            var part = content.AsSpan(off, Math.Min(10, content.Length - off)).ToArray();
+            f.Run("files.upload.chunk", new { id, offset = off, data = Convert.ToBase64String(part) });
+        }
+        var hash = hashOverride ?? SHA256.HashData(content);
+        var end = JsonDocument.Parse(JsonSerializer.Serialize(f.Run("files.upload.end", new { id, sha256 = Convert.ToBase64String(hash) }))).RootElement;
+        return end.GetProperty("name").GetString()!;
+    }
+
+    public static void T_envio_de_arquivo_chega_inteiro_na_pasta_do_fecho()
+    {
+        using var f = new FileHarness();
+        var content = Encoding.UTF8.GetBytes("conteúdo enviado pelo iPhone, em vários blocos");
+        var name = Upload(f, "foto.jpg", content);
+        Assert(name == "foto.jpg", "nome mudou: " + name);
+        Assert(File.ReadAllBytes(Path.Combine(f.Uploads, name)).SequenceEqual(content), "conteúdo diferente");
+        Assert(Upload(f, "foto.jpg", content) == "foto (2).jpg", "não criou nome único");
+        Assert(f.H.Audit.RecentForApp(5).Any(e => e.Cmd == "file.received"), "envio não entrou na atividade");
+    }
+
+    public static void T_envio_nao_escapa_da_pasta_e_limpa_nomes()
+    {
+        using var f = new FileHarness();
+        var content = new byte[] { 1, 2, 3 };
+        Assert(Upload(f, "../../Segredo/virus.exe", content) == "virus.exe", "nome com caminho aceito");
+        Assert(File.Exists(Path.Combine(f.Uploads, "virus.exe")), "arquivo fora do lugar");
+        Assert(!File.Exists(Path.Combine(f.Secret, "virus.exe")), "escapou para outra pasta");
+        Assert(Upload(f, "CON.txt", content) == "_CON.txt", "nome reservado do Windows aceito");
+        Assert(Upload(f, "a<b>c:d.txt", content) == "abcd.txt", "caracteres proibidos mantidos");
+        Assert(Upload(f, "...", content) == "arquivo", "nome vazio não tratado");
+    }
+
+    public static void T_envio_com_hash_errado_e_descartado()
+    {
+        using var f = new FileHarness();
+        try
+        {
+            Upload(f, "adulterado.txt", new byte[] { 9, 9, 9 }, hashOverride: new byte[32]);
+            throw new Exception("aceitou hash errado");
+        }
+        catch (CommandException ex) when (ex.Code == ErrorCodes.Invalid) { }
+        Assert(!File.Exists(Path.Combine(f.Uploads, "adulterado.txt")), "arquivo adulterado ficou");
+        Assert(Directory.GetFiles(Path.Combine(f.Uploads, ".parcial")).Length == 0, "parcial não foi apagado");
+    }
+
+    public static void T_envio_fora_de_ordem_ou_maior_que_o_declarado_e_recusado()
+    {
+        using var f = new FileHarness();
+        var begin = JsonDocument.Parse(JsonSerializer.Serialize(f.Run("files.upload.begin", new { name = "x.bin", size = 5 }))).RootElement;
+        var id = begin.GetProperty("id").GetString()!;
+        Assert(f.ErrorOf("files.upload.chunk", new { id, offset = 3, data = Convert.ToBase64String(new byte[2]) }) == ErrorCodes.Invalid, "fora de ordem aceito");
+        var b2 = JsonDocument.Parse(JsonSerializer.Serialize(f.Run("files.upload.begin", new { name = "y.bin", size = 2 }))).RootElement;
+        var id2 = b2.GetProperty("id").GetString()!;
+        Assert(f.ErrorOf("files.upload.chunk", new { id = id2, offset = 0, data = Convert.ToBase64String(new byte[5]) }) == ErrorCodes.Invalid, "maior que o declarado aceito");
+        Assert(f.ErrorOf("files.upload.begin", new { name = "grande.iso", size = FileService.MaxUploadBytes + 1 }) == ErrorCodes.Invalid, "acima do limite aceito");
+    }
+
+    public static void T_conexao_fechada_apaga_envios_pela_metade()
+    {
+        using var f = new FileHarness();
+        var begin = JsonDocument.Parse(JsonSerializer.Serialize(f.Run("files.upload.begin", new { name = "meio.bin", size = 100 }))).RootElement;
+        var id = begin.GetProperty("id").GetString()!;
+        f.Run("files.upload.chunk", new { id, offset = 0, data = Convert.ToBase64String(new byte[10]) });
+        f.Conn.Release();
+        Assert(Directory.GetFiles(Path.Combine(f.Uploads, ".parcial")).Length == 0, "parcial sobrou após desconectar");
+        Assert(!File.Exists(Path.Combine(f.Uploads, "meio.bin")), "arquivo incompleto publicado");
+    }
+
     // ---------- Rede ----------
 
     public static void T_somente_enderecos_da_rede_local()

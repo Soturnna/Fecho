@@ -30,7 +30,7 @@ struct HomeView: View {
             .refreshable { await model.connect() }
             .sheet(isPresented: $showUnlock) {
                 UnlockSheet()
-                    .presentationDetents([.medium])
+                    .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
             .alert("Desligar \(model.pcName)?", isPresented: $confirmShutdown) {
@@ -59,6 +59,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(model.pcName).font(.title3.weight(.semibold))
                     Text("Windows · rede local").font(.subheadline).foregroundStyle(.secondary)
+                        .lineLimit(1).minimumScaleFactor(0.85)
                 }
                 Spacer(minLength: 8)
                 LockBadge(locked: model.pcLocked)

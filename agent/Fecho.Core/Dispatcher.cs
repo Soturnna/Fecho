@@ -22,13 +22,19 @@ public sealed class CommandDispatcher
 
     private static readonly HashSet<string> AllowedKeys = BuildAllowedKeys();
 
+    public static readonly TimeSpan FilesGrantDuration = TimeSpan.FromMinutes(10);
+
     private readonly IPlatformActions _actions;
     private readonly AuditLog _audit;
+    private readonly FileService? _files;
+    private readonly IClock _clock;
 
-    public CommandDispatcher(IPlatformActions actions, AuditLog audit)
+    public CommandDispatcher(IPlatformActions actions, AuditLog audit, FileService? files = null, IClock? clock = null)
     {
         _actions = actions;
         _audit = audit;
+        _files = files;
+        _clock = clock ?? new SystemClock();
     }
 
     public object? Execute(CommandPayload p, DeviceRecord device, ConnectionState conn)
@@ -114,7 +120,108 @@ public sealed class CommandDispatcher
                 _actions.SetClipboardText(Text(a, "text", MaxClipboardLength));
                 return null;
         }
+        if (p.Cmd.StartsWith("files.", StringComparison.Ordinal)) return ExecuteFiles(p, device, conn);
         throw Invalid("comando");
+    }
+
+    private object? ExecuteFiles(CommandPayload p, DeviceRecord device, ConnectionState conn)
+    {
+        var files = _files ?? throw new CommandException(ErrorCodes.Unavailable, "arquivos desativados");
+        var a = p.Args;
+        switch (p.Cmd)
+        {
+            // Face ID uma vez libera a navegação nas pastas por 10 minutos, só nesta conexão.
+            case "files.grant":
+                conn.FilesGrantDevice = device.Id;
+                conn.FilesGrantUntil = _clock.NowMs + (long)FilesGrantDuration.TotalMilliseconds;
+                return new { expiresIn = (int)FilesGrantDuration.TotalSeconds };
+
+            case "files.roots":
+                RequireGrant(device, conn);
+                return files.Roots();
+
+            case "files.list":
+                RequireGrant(device, conn);
+                return files.List(Text(a, "root", 32), OptionalText(a, "path", 1024));
+
+            case "files.read":
+            {
+                RequireGrant(device, conn);
+                var (data, size, eof) = files.Read(Text(a, "root", 32), Text(a, "path", 1024),
+                    Long(a, "offset", 0, long.MaxValue), Int(a, "length", 1, FileService.MaxChunkBytes));
+                return new { data = Convert.ToBase64String(data), size, eof };
+            }
+
+            // Enviar ao PC não exige Face ID: o arquivo só pode cair em Downloads\Fecho.
+            case "files.upload.begin":
+            {
+                var upload = files.BeginUpload(Text(a, "name", 255), Long(a, "size", 0, FileService.MaxUploadBytes),
+                    conn.Uploads.Count);
+                conn.Uploads[upload.Id] = upload;
+                return new { id = upload.Id, chunk = FileService.MaxChunkBytes };
+            }
+
+            case "files.upload.chunk":
+            {
+                var upload = Upload(a, conn);
+                var data = Crypto.FromBase64(Text(a, "data", FileService.MaxChunkBytes * 2), FileService.MaxChunkBytes)
+                    ?? throw Invalid("dados");
+                try
+                {
+                    files.WriteChunk(upload, Long(a, "offset", 0, FileService.MaxUploadBytes), data);
+                }
+                catch (CommandException)
+                {
+                    conn.Uploads.Remove(upload.Id);
+                    upload.Dispose();
+                    throw;
+                }
+                return new { written = upload.Written };
+            }
+
+            case "files.upload.end":
+            {
+                var upload = Upload(a, conn);
+                conn.Uploads.Remove(upload.Id);
+                try
+                {
+                    var hash = Crypto.FromBase64(Text(a, "sha256", 64), 32) ?? throw Invalid("hash");
+                    var name = files.FinishUpload(upload, hash);
+                    _audit.Record(device.Id, "file.received", true, name);
+                    return new { name };
+                }
+                finally
+                {
+                    upload.Dispose();
+                }
+            }
+        }
+        throw Invalid("comando");
+    }
+
+    private void RequireGrant(DeviceRecord device, ConnectionState conn)
+    {
+        if (conn.FilesGrantDevice != device.Id || conn.FilesGrantUntil < _clock.NowMs)
+            throw new CommandException(ErrorCodes.NeedsGrant, "sem permissão de arquivos");
+    }
+
+    private static UploadSession Upload(JsonElement a, ConnectionState conn) =>
+        conn.Uploads.TryGetValue(Text(a, "id", 32), out var u) ? u : throw Invalid("envio");
+
+    private static string OptionalText(JsonElement a, string name, int max)
+    {
+        var s = Authenticator.Str(a, name) ?? "";
+        if (s.Length > max) throw Invalid(name);
+        return s;
+    }
+
+    private static long Long(JsonElement a, string name, long min, long max)
+    {
+        if (a.ValueKind != JsonValueKind.Object || !a.TryGetProperty(name, out var v)
+            || v.ValueKind != JsonValueKind.Number || !v.TryGetInt64(out var n))
+            throw Invalid(name);
+        if (n < min || n > max) throw Invalid(name);
+        return n;
     }
 
     private static CommandException Invalid(string what) => new(ErrorCodes.Invalid, what);

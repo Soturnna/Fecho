@@ -40,7 +40,7 @@ vai no QR; se ele mudar, é preciso parear de novo.
 - [x] Fase 2 — Agente: pareamento, energia, mídia, volume, mouse, teclado, área de transferência
 - [x] Fase 3 — App do iPhone conectado, com Face ID e Atalhos
 - [ ] Fase 4 — Credential Provider: desbloqueio real da tela
-- [ ] Fase 5 — Troca de arquivos
+- [x] Fase 5 — Troca de arquivos
 - [ ] Fase 6 — Proximidade por Bluetooth e Apple Watch
 
 ## Rodar os testes localmente

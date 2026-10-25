@@ -128,7 +128,7 @@ public sealed class AgentServer : IAsyncDisposable
         catch (OperationCanceledException) { }
         finally
         {
-            conn.State.EndSession();
+            conn.State.Release();
             _connections.TryRemove(id, out _);
         }
     }
@@ -226,6 +226,7 @@ public sealed class AgentServer : IAsyncDisposable
         foreach (var c in _connections.Values.Where(c => c.State.DeviceId == deviceId || c.State.SessionDevice == deviceId))
         {
             c.State.EndSession();
+            c.State.FilesGrantUntil = 0;
             try { c.Socket.Abort(); } catch (ObjectDisposedException) { }
         }
     }

@@ -23,6 +23,7 @@ struct ActivityItem: Identifiable, Equatable {
         case "restart": "Reiniciado"
         case "shutdown": "Desligado"
         case "pair": "iPhone pareado"
+        case "file.received": "Arquivo enviado ao PC"
         default: cmd
         }
     }
@@ -35,6 +36,7 @@ struct ActivityItem: Identifiable, Equatable {
         case "sleep": "moon.fill"
         case "restart": "arrow.clockwise"
         case "shutdown": "power"
+        case "file.received": "arrow.up.doc.fill"
         default: "iphone"
         }
     }
@@ -76,7 +78,10 @@ final class AppModel {
     var clipboardText: String?
     var toast: String?
 
-    private let client = AgentClient.shared
+    var uploads: [UploadItem] = []
+    var filesGrantedUntil: Date?
+
+    let client = AgentClient.shared
 
     init() {
         if pairing != nil { connection = .connecting }
@@ -167,7 +172,7 @@ final class AppModel {
             pcLocked = false
             await refreshActivity()
         } catch AgentError.unavailable {
-            unlockStep = .failed("O componente de desbloqueio ainda não está instalado no PC. Ele chega na próxima etapa do projeto.")
+            unlockStep = .failed("O PC recebeu e validou o pedido, mas o componente que entra na tela de login do Windows ainda não foi instalado. Ele é a próxima etapa do projeto.")
         } catch KeyStoreError.authenticationCancelled {
             unlockStep = .idle
         } catch {

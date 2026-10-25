@@ -16,6 +16,7 @@ public sealed class TrayContext : ApplicationContext
     private readonly PairingManager _pairing;
     private readonly AuditLog _audit;
     private readonly WindowsActions _actions;
+    private readonly FileService _files;
     private readonly AgentServer _server;
     private readonly string _fingerprint;
     private readonly NotifyIcon _icon;
@@ -37,7 +38,8 @@ public sealed class TrayContext : ApplicationContext
         _audit = new AuditLog(clock, new FileAuditSink());
         _actions = new WindowsActions();
         var auth = new Authenticator(_config.AgentId, _registry, _pairing, clock);
-        var dispatcher = new CommandDispatcher(_actions, _audit);
+        _files = CreateFileService();
+        var dispatcher = new CommandDispatcher(_actions, _audit, _files, clock);
         _server = new AgentServer(
             new AgentServerOptions { Port = _config.Port, Certificate = cert, AgentId = _config.AgentId },
             auth, dispatcher, _registry, _audit);
@@ -59,6 +61,7 @@ public sealed class TrayContext : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem("Parear iPhone…", null, (_, _) => ShowPairing()) { Font = new Font(menu.Font, FontStyle.Bold) });
         menu.Items.Add(_devicesMenu);
         menu.Items.Add(new ToolStripMenuItem("Atividade recente…", null, (_, _) => ShowActivity()));
+        menu.Items.Add(new ToolStripMenuItem("Abrir arquivos recebidos", null, (_, _) => OpenUploads()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_autostartItem);
         menu.Items.Add(new ToolStripMenuItem("Sair do Fecho", null, (_, _) => ExitThread()));
@@ -73,6 +76,8 @@ public sealed class TrayContext : ApplicationContext
         _icon.DoubleClick += (_, _) => ShowPairing();
 
         SystemEvents.SessionSwitch += OnSessionSwitch;
+        _files.Received += name => _ui.BeginInvoke(() =>
+            _icon.ShowBalloonTip(4000, "Arquivo recebido do iPhone", name, ToolTipIcon.Info));
 
         try
         {
@@ -90,6 +95,32 @@ public sealed class TrayContext : ApplicationContext
             _icon.ShowBalloonTip(5000, "Fecho está rodando",
                 "Clique com o botão direito no ícone e escolha Parear iPhone.", ToolTipIcon.Info);
         }
+    }
+
+    /// <summary>Só as pastas pessoais do usuário; nada de C:\ ou pastas do sistema.</summary>
+    private static FileService CreateFileService()
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var downloads = Path.Combine(profile, "Downloads");
+        var roots = new Dictionary<string, (string, string)>
+        {
+            ["desktop"] = ("Área de Trabalho", Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)),
+            ["documents"] = ("Documentos", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
+            ["downloads"] = ("Downloads", downloads),
+            ["pictures"] = ("Imagens", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)),
+            ["videos"] = ("Vídeos", Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)),
+            ["music"] = ("Música", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)),
+        };
+        return new FileService(roots, Path.Combine(downloads, "Fecho"));
+    }
+
+    private void OpenUploads()
+    {
+        Directory.CreateDirectory(_files.UploadDirectory);
+        using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{_files.UploadDirectory}\"")
+        {
+            UseShellExecute = false,
+        });
     }
 
     private void ShowPairing()

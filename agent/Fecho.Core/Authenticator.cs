@@ -11,6 +11,21 @@ public sealed class ConnectionState
     public string? SessionDevice { get; set; }
     public long LastSeq { get; set; }
 
+    /// <summary>Até quando (ms) este aparelho pode navegar nas pastas do PC.</summary>
+    public long FilesGrantUntil { get; set; }
+    public string? FilesGrantDevice { get; set; }
+    public Dictionary<string, UploadSession> Uploads { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Chamado quando a conexão fecha: encerra sessão, permissão e envios.</summary>
+    public void Release()
+    {
+        EndSession();
+        FilesGrantUntil = 0;
+        FilesGrantDevice = null;
+        foreach (var u in Uploads.Values) u.Dispose();
+        Uploads.Clear();
+    }
+
     public void EndSession()
     {
         if (SessionKey is not null) Array.Clear(SessionKey);

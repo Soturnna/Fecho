@@ -7,6 +7,7 @@ struct ControlView: View {
     @State private var ctrl = false
     @State private var alt = false
     @State private var shift = false
+    @FocusState private var typing: Bool
 
     enum Mode: String, CaseIterable, Identifiable {
         case trackpad = "Trackpad"
@@ -32,7 +33,7 @@ struct ControlView: View {
                     .pickerStyle(.segmented)
 
                     if mode == .trackpad {
-                        Trackpad()
+                        Trackpad(onTouch: { typing = false })
                         HStack(spacing: 10) {
                             pill("Clique esquerdo") { Task { await model.click("left") } }
                             pill("Clique direito") { Task { await model.click("right") } }
@@ -47,8 +48,17 @@ struct ControlView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            .scrollDismissesKeyboard(.immediately)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Controle")
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("OK") { typing = false }
+                        .fontWeight(.semibold)
+                        .accessibilityLabel("Fechar teclado")
+                }
+            }
             .disabled(!model.isConnected || model.pcLocked == true)
             .overlay {
                 if model.pcLocked == true {
@@ -79,6 +89,7 @@ struct ControlView: View {
     private var textField: some View {
         HStack(spacing: 8) {
             TextField("Digite para enviar ao PC", text: $text)
+                .focused($typing)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.send)
@@ -135,6 +146,7 @@ struct ModifierToggle: View {
 /// Área de toque que vira mouse. Faixa à direita rola a página.
 struct Trackpad: View {
     @Environment(AppModel.self) private var model
+    var onTouch: () -> Void = {}
     @State private var last: CGPoint?
     @State private var moved: CGFloat = 0
     @State private var pendingDX: CGFloat = 0
@@ -182,6 +194,7 @@ struct Trackpad: View {
     private var moveGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                if last == nil { onTouch() }
                 if let last {
                     pendingDX += (value.location.x - last.x) * sensitivity
                     pendingDY += (value.location.y - last.y) * sensitivity

@@ -14,9 +14,11 @@ enum AgentError: LocalizedError, Equatable {
     case rateLimited
     case timeout
     case cancelled
+    case needsGrant
 
     init(code: String?) {
         switch code {
+        case "permissao": self = .needsGrant
         case "recusado": self = .refused
         case "invalido": self = .invalid
         case "indisponivel": self = .unavailable
@@ -37,6 +39,7 @@ enum AgentError: LocalizedError, Equatable {
         case .rateLimited: "Muitos pedidos seguidos. Aguarde um instante."
         case .timeout: "O PC demorou para responder."
         case .cancelled: "Cancelado."
+        case .needsGrant: "Confirme com Face ID para abrir as pastas do PC."
         }
     }
 }

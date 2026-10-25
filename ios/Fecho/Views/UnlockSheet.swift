@@ -8,24 +8,29 @@ struct UnlockSheet: View {
     var body: some View {
         VStack(spacing: 18) {
             Image(systemName: icon)
-                .font(.system(size: 48))
+                .font(.system(size: 40))
                 .foregroundStyle(iconColor)
-                .frame(width: 104, height: 104)
+                .frame(width: 88, height: 88)
                 .background(iconColor.opacity(0.14), in: .circle)
-                .padding(.top, 24)
+                .padding(.top, 16)
                 .accessibilityHidden(true)
 
             VStack(spacing: 6) {
                 Text(title).font(.title2.bold()).multilineTextAlignment(.center)
-                Text("A senha do Windows fica guardada no PC. O iPhone envia apenas um pedido assinado.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !isFailed {
+                    Text("A senha do Windows fica guardada no PC. O iPhone envia apenas um pedido assinado.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if case .failed(let message) = model.unlockStep {
                 Text(message)
                     .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.tertiarySystemGroupedBackground), in: .rect(cornerRadius: 18))
@@ -63,6 +68,11 @@ struct UnlockSheet: View {
             }
         }
         .sensoryFeedback(.success, trigger: model.unlockStep == .done)
+    }
+
+    private var isFailed: Bool {
+        if case .failed = model.unlockStep { return true }
+        return false
     }
 
     private var title: String {

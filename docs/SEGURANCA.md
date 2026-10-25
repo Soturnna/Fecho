@@ -121,6 +121,31 @@ A remoção vale na hora, inclusive para conexões já abertas.
 Todo comando aceito ou recusado é registrado com data, aparelho e resultado.
 Os últimos eventos aparecem em "Atividade recente" no app.
 
+### 9. Arquivos
+
+**Do iPhone para o PC** (não exige Face ID):
+
+- O arquivo cai **sempre** em `Downloads\Fecho`. O nome enviado é limpo:
+  caminhos (`../`), caracteres proibidos e nomes reservados do Windows
+  (`CON`, `NUL`…) são removidos; nomes repetidos viram `nome (2).ext`.
+- Chega em blocos de até 48 KB, em ordem, até o tamanho declarado
+  (máximo 500 MB). No fim, o agente confere o **SHA-256** do arquivo inteiro.
+  Se não bater, o arquivo é descartado.
+- Enquanto não termina, fica numa pasta oculta `.parcial`. Se a conexão
+  cair, o parcial é apagado.
+- O arquivo recebido ganha a marca "veio da internet" do Windows, que faz o
+  sistema avisar antes de abrir um executável.
+
+**Do PC para o iPhone** (exige Face ID):
+
+- Abrir as pastas do PC exige um `files.grant` assinado com a **chave de
+  desbloqueio**. A permissão vale **10 minutos** e **só para aquela conexão**.
+- Só as pastas pessoais ficam visíveis: Área de Trabalho, Documentos,
+  Downloads, Imagens, Vídeos e Música. Nada de `C:\` ou pastas do sistema.
+- O caminho pedido é recusado se tiver `..`, `\`, `:`, segmentos vazios,
+  espaço ou ponto no fim, ou se passar por **atalho/junção** (que poderia
+  apontar para fora da pasta). Arquivos ocultos e de sistema não aparecem.
+
 ## O que ainda não está implementado
 
 - **Desbloqueio real da tela** (Credential Provider): fase 4. Até lá, o agente

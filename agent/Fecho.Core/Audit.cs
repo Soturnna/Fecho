@@ -48,7 +48,7 @@ public sealed class AuditLog
         lock (_entries)
         {
             return _entries
-                .Where(e => e.Ok && e.Cmd is "unlock" or "lock" or "sleep" or "shutdown" or "restart" or "pair" or "autolock")
+                .Where(e => e.Ok && e.Cmd is "unlock" or "lock" or "sleep" or "shutdown" or "restart" or "pair" or "autolock" or "file.received")
                 .Take(max)
                 .Select(e => new AuditEntry { Ts = e.Ts, Device = e.Device, Cmd = e.Cmd, Ok = e.Ok })
                 .ToList();
