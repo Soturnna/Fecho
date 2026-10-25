@@ -166,6 +166,37 @@ public sealed class WindowsActions : IPlatformActions
         Send(Mouse(MOUSEEVENTF_WHEEL, data: amount * 120));
     }
 
+    public void MouseMoveTo(double x, double y)
+    {
+        EnsureUnlocked();
+        Send(MouseAbs(x, y));
+    }
+
+    public void MouseClickAt(double x, double y, MouseButton button)
+    {
+        EnsureUnlocked();
+        var (down, up) = ButtonFlags(button);
+        Send(MouseAbs(x, y), Mouse(down), Mouse(up));
+    }
+
+    public void MouseButtonDown(double x, double y, MouseButton button)
+    {
+        EnsureUnlocked();
+        var (down, _) = ButtonFlags(button);
+        Send(MouseAbs(x, y), Mouse(down));
+    }
+
+    public void MouseButtonUp(double x, double y, MouseButton button)
+    {
+        EnsureUnlocked();
+        var (_, up) = ButtonFlags(button);
+        Send(MouseAbs(x, y), Mouse(up));
+    }
+
+    private static (uint Down, uint Up) ButtonFlags(MouseButton button) => button == MouseButton.Left
+        ? (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP)
+        : (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP);
+
     public void Key(string key, IReadOnlyList<string> modifiers)
     {
         EnsureUnlocked();

@@ -16,12 +16,19 @@ public sealed class ConnectionState
     public string? FilesGrantDevice { get; set; }
     public Dictionary<string, UploadSession> Uploads { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>Chamado quando a conexão fecha: encerra sessão, permissão e envios.</summary>
+    /// <summary>Se este aparelho está pedindo o streaming da tela agora.</summary>
+    private volatile bool _wantsScreen;
+    public bool WantsScreen { get => _wantsScreen; set => _wantsScreen = value; }
+    public int ScreenMaxWidth { get; set; } = 900;
+    public int ScreenQuality { get; set; } = 50;
+
+    /// <summary>Chamado quando a conexão fecha: encerra sessão, permissão, envios e streaming.</summary>
     public void Release()
     {
         EndSession();
         FilesGrantUntil = 0;
         FilesGrantDevice = null;
+        WantsScreen = false;
         foreach (var u in Uploads.Values) u.Dispose();
         Uploads.Clear();
     }

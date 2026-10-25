@@ -91,10 +91,25 @@ public sealed class FakeActions : IPlatformActions
     public void MouseMove(int dx, int dy) => Calls.Add($"move:{dx},{dy}");
     public void MouseClick(MouseButton button) => Calls.Add($"click:{button}");
     public void MouseScroll(int amount) => Calls.Add($"scroll:{amount}");
+    public void MouseMoveTo(double x, double y) => Calls.Add(System.FormattableString.Invariant($"moveto:{x},{y}"));
+    public void MouseClickAt(double x, double y, MouseButton b) => Calls.Add(System.FormattableString.Invariant($"clickat:{b}:{x},{y}"));
+    public void MouseButtonDown(double x, double y, MouseButton b) => Calls.Add(System.FormattableString.Invariant($"down:{b}:{x},{y}"));
+    public void MouseButtonUp(double x, double y, MouseButton b) => Calls.Add(System.FormattableString.Invariant($"up:{b}:{x},{y}"));
     public void Key(string key, IReadOnlyList<string> modifiers) => Calls.Add($"key:{string.Join("+", modifiers)}+{key}");
     public void Text(string text) => Calls.Add($"text:{text}");
     public string? GetClipboardText() => "copiado";
     public void SetClipboardText(string text) => Calls.Add($"clip:{text}");
+}
+
+/// <summary>Tela falsa: devolve sempre um quadro de 4 bytes.</summary>
+public sealed class FakeScreenSource : IScreenSource
+{
+    public int Captures;
+    public ScreenFrame? Capture(int maxWidth, int quality)
+    {
+        Interlocked.Increment(ref Captures);
+        return new ScreenFrame(new byte[] { 1, 2, 3, 4 }, 4, 4);
+    }
 }
 
 /// <summary>Monta o agente inteiro em memória para os testes.</summary>

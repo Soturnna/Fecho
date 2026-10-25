@@ -146,6 +146,21 @@ Os últimos eventos aparecem em "Atividade recente" no app.
   espaço ou ponto no fim, ou se passar por **atalho/junção** (que poderia
   apontar para fora da pasta). Arquivos ocultos e de sistema não aparecem.
 
+### 10. Ver a tela do PC
+
+- O streaming da tela vale como **controle** (iPhone desbloqueado e pareado).
+  Quem já pode mexer no mouse e no teclado também pode ver a tela.
+- Os quadros vão em JPEG **só dentro da conexão TLS com certificado fixado**,
+  na rede local. Nada é gravado, nem no PC nem no iPhone.
+- Enquanto o PC está **bloqueado**, a captura falha de propósito (a tela de
+  bloqueio é uma "área de trabalho segura" que o agente não enxerga), então o
+  streaming pausa sozinho e volta quando você desbloqueia.
+- O controle por toque usa posição **absoluta**: o toque na imagem vira a
+  mesma posição do cursor no PC. Assim como os outros controles, só funciona
+  com o PC desbloqueado.
+- O quadro e a largura são limitados; sob carga, o PC descarta quadros em vez
+  de acumular atraso.
+
 ## O que ainda não está implementado
 
 - **Desbloqueio real da tela** (Credential Provider): fase 4. Até lá, o agente

@@ -511,6 +511,94 @@ public static class Tests
         Assert(!File.Exists(Path.Combine(f.Uploads, "meio.bin")), "arquivo incompleto publicado");
     }
 
+    // ---------- Tela e mouse absoluto ----------
+
+    public static void T_mouse_absoluto_mapeia_coordenadas()
+    {
+        var h = new Harness();
+        var r = Auth(h, h.Device.Signed("mouse.moveto", new { x = 0.5, y = 0.25 }));
+        h.Dispatcher.Execute(r.Payload!, r.Device!, new ConnectionState());
+        Assert(h.Actions.Calls.Contains("moveto:0.5,0.25"), "moveto não mapeou: " + string.Join(";", h.Actions.Calls));
+        var r2 = Auth(h, h.Device.Signed("mouse.clickat", new { x = 1, y = 0, button = "right" }));
+        h.Dispatcher.Execute(r2.Payload!, r2.Device!, new ConnectionState());
+        Assert(h.Actions.Calls.Any(c => c.StartsWith("clickat:Right:")), "clique direito por posição não registrou");
+    }
+
+    public static void T_coordenada_fora_do_intervalo_e_presa()
+    {
+        var h = new Harness();
+        var r = Auth(h, h.Device.Signed("mouse.moveto", new { x = 5.0, y = -2.0 }));
+        h.Dispatcher.Execute(r.Payload!, r.Device!, new ConnectionState());
+        Assert(h.Actions.Calls.Contains("moveto:1,0"), "coordenada não foi presa a 0..1");
+    }
+
+    public static void T_screen_start_e_stop_controlam_o_streaming()
+    {
+        var h = new Harness();
+        var conn = new ConnectionState();
+        Assert(!conn.WantsScreen, "começou querendo a tela");
+        var r = Auth(h, h.Device.Signed("screen.start", new { maxWidth = 800, quality = 40 }), conn);
+        h.Dispatcher.Execute(r.Payload!, r.Device!, conn);
+        Assert(conn.WantsScreen && conn.ScreenMaxWidth == 800 && conn.ScreenQuality == 40, "screen.start não ligou");
+        var r2 = Auth(h, h.Device.Signed("screen.stop"), conn);
+        h.Dispatcher.Execute(r2.Payload!, r2.Device!, conn);
+        Assert(!conn.WantsScreen, "screen.stop não desligou");
+    }
+
+    public static void T_streaming_para_quando_a_conexao_fecha()
+    {
+        var conn = new ConnectionState { WantsScreen = true };
+        conn.Release();
+        Assert(!conn.WantsScreen, "streaming sobreviveu ao fechamento da conexão");
+    }
+
+    public static async Task T_ponta_a_ponta_streaming_da_tela()
+    {
+        var clock = new SystemClock();
+        var registry = new DeviceRegistry(new InMemoryDeviceStorage());
+        var pairing = new PairingManager(clock);
+        var audit = new AuditLog(clock);
+        var cert = AgentCertificate.CreateForServer();
+        var fp = AgentCertificate.Fingerprint(cert);
+        var screen = new FakeScreenSource();
+        var port = 49000 + Random.Shared.Next(900);
+        await using var server = new AgentServer(
+            new AgentServerOptions { Port = port, Certificate = cert, AgentId = "agente-teste" },
+            new Authenticator("agente-teste", registry, pairing, clock),
+            new CommandDispatcher(new FakeActions(), audit), registry, audit, screen);
+        await server.StartAsync();
+
+        var device = new TestDevice { Clock = clock };
+        var offer = pairing.Begin(TimeSpan.FromMinutes(2));
+        using var ws = await Connect(port, fp);
+        var pair = await Send(ws, d => PairEnvelope(new Harness(), d, offer.Token), device);
+        Assert(pair.GetProperty("ok").GetBoolean(), "pareamento falhou");
+
+        await ws.SendAsync(TestDevice.ToBytes(device.Signed("screen.start", new { maxWidth = 640, quality = 40 })),
+            WebSocketMessageType.Text, true, CancellationToken.None);
+        var frame = await WaitForBinary(ws, TimeSpan.FromSeconds(4));
+        Assert(frame is { Length: 4 }, "nenhum quadro binário chegou pela conexão");
+        Assert(screen.Captures > 0, "a tela não foi capturada");
+    }
+
+    private static async Task<byte[]?> WaitForBinary(ClientWebSocket ws, TimeSpan timeout)
+    {
+        var buffer = new byte[64 * 1024];
+        using var cts = new CancellationTokenSource(timeout);
+        try
+        {
+            while (true)
+            {
+                var r = await ws.ReceiveAsync(buffer, cts.Token);
+                if (r.MessageType == WebSocketMessageType.Binary) return buffer[..r.Count];
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
     // ---------- Rede ----------
 
     public static void T_somente_enderecos_da_rede_local()

@@ -72,6 +72,7 @@ actor AgentClient {
     private var seq: Int64 = 0
     private var eventHandler: (@Sendable (String, JSONObject) -> Void)?
     private var disconnectHandler: (@Sendable () -> Void)?
+    private var frameHandler: (@Sendable (Data) -> Void)?
 
     // MARK: - Conexão
 
@@ -82,6 +83,16 @@ actor AgentClient {
 
     func onEvent(_ handler: @escaping @Sendable (String, JSONObject) -> Void) { eventHandler = handler }
     func onDisconnect(_ handler: @escaping @Sendable () -> Void) { disconnectHandler = handler }
+    func onFrame(_ handler: @escaping @Sendable (Data) -> Void) { frameHandler = handler }
+
+    /// Liga o streaming da tela do PC. Os quadros chegam como mensagens binárias.
+    func startScreen(maxWidth: Int, quality: Int) async throws {
+        _ = try await request("screen.start", ["maxWidth": maxWidth, "quality": quality], auth: .session)
+    }
+
+    func stopScreen() async {
+        _ = try? await request("screen.stop", auth: .session)
+    }
 
     var isConnected: Bool { task?.state == .running }
 
@@ -271,18 +282,21 @@ actor AgentClient {
             sessionKey = nil
             disconnectHandler?()
         case .success(let message):
-            var data: Data?
             switch message {
-            case .string(let text): data = text.data(using: .utf8)
-            case .data(let d): data = d
-            @unknown default: data = nil
-            }
-            if let data, let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let event = obj["event"] as? String {
-                    eventHandler?(event, JSONObject(obj["data"] as? [String: Any] ?? [:]))
-                } else if let id = obj["id"] as? String, !id.isEmpty {
-                    pending.removeValue(forKey: id)?.resume(returning: JSONObject(obj))
+            case .data(let frame):
+                // Mensagem binária = um quadro da tela.
+                frameHandler?(frame)
+            case .string(let text):
+                if let data = text.data(using: .utf8),
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let event = obj["event"] as? String {
+                        eventHandler?(event, JSONObject(obj["data"] as? [String: Any] ?? [:]))
+                    } else if let id = obj["id"] as? String, !id.isEmpty {
+                        pending.removeValue(forKey: id)?.resume(returning: JSONObject(obj))
+                    }
                 }
+            @unknown default:
+                break
             }
             receiveNext(on: source)
         }

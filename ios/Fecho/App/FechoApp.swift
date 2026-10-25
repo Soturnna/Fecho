@@ -30,19 +30,22 @@ struct RootView: View {
         } else {
             TabView(selection: $tab) {
                 Tab("Início", systemImage: "house.fill", value: AppTab.home) { HomeView() }
+                Tab("Tela", systemImage: "display", value: AppTab.screen) { ScreenControlView() }
                 Tab("Mídia", systemImage: "speaker.wave.2.fill", value: AppTab.media) { MediaView() }
-                Tab("Controle", systemImage: "computermouse.fill", value: AppTab.control) { ControlView() }
                 Tab("Arquivos", systemImage: "folder.fill", value: AppTab.files) { FilesView() }
                 Tab("Ajustes", systemImage: "gearshape.fill", value: AppTab.settings) { SettingsView() }
             }
-            .tabViewBottomAccessory { MiniPlayer() }
+            .tabViewBottomAccessory {
+                // Escondido na aba Tela para não atrapalhar o toque sobre a tela do PC.
+                if tab != .screen { MiniPlayer() }
+            }
             .overlay(alignment: .top) { ToastView() }
         }
     }
 }
 
 enum AppTab: Hashable {
-    case home, media, control, files, settings
+    case home, screen, media, files, settings
 }
 
 /// Acessório da barra de abas: controle rápido da mídia do PC.

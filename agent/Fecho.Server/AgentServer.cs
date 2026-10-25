@@ -39,17 +39,19 @@ public sealed class AgentServer : IAsyncDisposable
     private readonly CommandDispatcher _dispatcher;
     private readonly DeviceRegistry _registry;
     private readonly AuditLog _audit;
+    private readonly IScreenSource? _screen;
     private readonly ConcurrentDictionary<Guid, Connection> _connections = new();
     private WebApplication? _app;
 
     public AgentServer(AgentServerOptions options, Authenticator auth, CommandDispatcher dispatcher,
-        DeviceRegistry registry, AuditLog audit)
+        DeviceRegistry registry, AuditLog audit, IScreenSource? screen = null)
     {
         _options = options;
         _auth = auth;
         _dispatcher = dispatcher;
         _registry = registry;
         _audit = audit;
+        _screen = screen;
         _registry.Revoked += OnRevoked;
     }
 
@@ -120,6 +122,7 @@ public sealed class AgentServer : IAsyncDisposable
         var id = Guid.NewGuid();
         var conn = new Connection { Socket = socket };
         _connections[id] = conn;
+        var screenLoop = Task.Run(() => ScreenLoopAsync(conn, ctx.RequestAborted));
         try
         {
             await ReceiveLoopAsync(conn, ctx.RequestAborted);
@@ -128,8 +131,10 @@ public sealed class AgentServer : IAsyncDisposable
         catch (OperationCanceledException) { }
         finally
         {
+            conn.State.WantsScreen = false;
             conn.State.Release();
             _connections.TryRemove(id, out _);
+            try { await screenLoop; } catch (Exception) { }
         }
     }
 
@@ -202,6 +207,56 @@ public sealed class AgentServer : IAsyncDisposable
         {
             _audit.Record(auth.Device!.Id, cmd, false, ex.GetType().Name);
             return new Reply { Id = id, Ok = false, Error = ErrorCodes.Failed };
+        }
+    }
+
+    /// <summary>
+    /// Enquanto o aparelho pede a tela, captura um quadro, envia como mensagem
+    /// binária e espera um tempo. Se um envio ainda está em curso, pula o quadro
+    /// (melhor perder um quadro do que acumular atraso).
+    /// </summary>
+    private async Task ScreenLoopAsync(Connection conn, CancellationToken ct)
+    {
+        if (_screen is null) return;
+        const int targetIntervalMs = 90; // ~11 quadros por segundo
+        while (conn.Socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
+        {
+            if (!conn.State.WantsScreen)
+            {
+                try { await Task.Delay(120, ct); } catch (OperationCanceledException) { return; }
+                continue;
+            }
+
+            ScreenFrame? frame;
+            try { frame = _screen.Capture(conn.State.ScreenMaxWidth, conn.State.ScreenQuality); }
+            catch (Exception) { frame = null; }
+
+            if (frame is null)
+            {
+                // Tela bloqueada ou captura indisponível: avisa uma vez e espera mais.
+                try { await Task.Delay(300, ct); } catch (OperationCanceledException) { return; }
+                continue;
+            }
+
+            await SendBinaryAsync(conn, frame.Jpeg);
+            try { await Task.Delay(targetIntervalMs, ct); } catch (OperationCanceledException) { return; }
+        }
+    }
+
+    private static async Task SendBinaryAsync(Connection c, byte[] bytes)
+    {
+        // Não espera na trava: se outro envio está em curso, descarta este quadro.
+        if (!await c.SendLock.WaitAsync(0)) return;
+        try
+        {
+            if (c.Socket.State == WebSocketState.Open)
+                await c.Socket.SendAsync(bytes, WebSocketMessageType.Binary, true, CancellationToken.None);
+        }
+        catch (WebSocketException) { }
+        catch (ObjectDisposedException) { }
+        finally
+        {
+            c.SendLock.Release();
         }
     }
 

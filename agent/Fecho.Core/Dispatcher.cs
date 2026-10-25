@@ -100,6 +100,27 @@ public sealed class CommandDispatcher
             case "mouse.scroll":
                 _actions.MouseScroll(Int(a, "amount", -50, 50));
                 return null;
+            case "mouse.moveto":
+                _actions.MouseMoveTo(Norm(a, "x"), Norm(a, "y"));
+                return null;
+            case "mouse.clickat":
+                _actions.MouseClickAt(Norm(a, "x"), Norm(a, "y"), Btn(a));
+                return null;
+            case "mouse.down":
+                _actions.MouseButtonDown(Norm(a, "x"), Norm(a, "y"), Btn(a));
+                return null;
+            case "mouse.up":
+                _actions.MouseButtonUp(Norm(a, "x"), Norm(a, "y"), Btn(a));
+                return null;
+
+            case "screen.start":
+                conn.ScreenMaxWidth = OptionalInt(a, "maxWidth", 320, 1600, 900);
+                conn.ScreenQuality = OptionalInt(a, "quality", 20, 80, 50);
+                conn.WantsScreen = true;
+                return new { streaming = true };
+            case "screen.stop":
+                conn.WantsScreen = false;
+                return null;
 
             case "key":
                 var key = Text(a, "key", 12);
@@ -243,6 +264,30 @@ public sealed class CommandDispatcher
     }
 
     private static int Percent(JsonElement a, string name) => Int(a, name, 0, 100);
+
+    private static int OptionalInt(JsonElement a, string name, int min, int max, int fallback)
+    {
+        if (a.ValueKind != JsonValueKind.Object || !a.TryGetProperty(name, out var v)
+            || v.ValueKind != JsonValueKind.Number || !v.TryGetInt32(out var n)) return fallback;
+        return Math.Clamp(n, min, max);
+    }
+
+    /// <summary>Lê uma coordenada normalizada (0 a 1) e a prende nesse intervalo.</summary>
+    private static double Norm(JsonElement a, string name)
+    {
+        if (a.ValueKind != JsonValueKind.Object || !a.TryGetProperty(name, out var v)
+            || v.ValueKind != JsonValueKind.Number || !v.TryGetDouble(out var d) || double.IsNaN(d))
+            throw Invalid(name);
+        return Math.Clamp(d, 0, 1);
+    }
+
+    private static MouseButton Btn(JsonElement a) =>
+        (Authenticator.Str(a, "button") ?? "left") switch
+        {
+            "left" => MouseButton.Left,
+            "right" => MouseButton.Right,
+            _ => throw Invalid("botão"),
+        };
 
     private static bool Bool(JsonElement a, string name)
     {

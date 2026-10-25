@@ -42,7 +42,7 @@ public sealed class TrayContext : ApplicationContext
         var dispatcher = new CommandDispatcher(_actions, _audit, _files, clock);
         _server = new AgentServer(
             new AgentServerOptions { Port = _config.Port, Certificate = cert, AgentId = _config.AgentId },
-            auth, dispatcher, _registry, _audit);
+            auth, dispatcher, _registry, _audit, new GdiScreenSource());
 
         // Controle invisível só para voltar à thread da interface.
         _ui = new Control();

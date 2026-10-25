@@ -27,6 +27,18 @@ public sealed class VolumeState
 }
 
 public enum MediaAction { PlayPause, Next, Previous }
+
+/// <summary>Um quadro da tela do PC, já em JPEG.</summary>
+public sealed record ScreenFrame(byte[] Jpeg, int Width, int Height);
+
+/// <summary>
+/// Captura a tela do PC. A implementação real é GDI no Windows; devolve null
+/// quando não consegue (PC bloqueado / tela segura).
+/// </summary>
+public interface IScreenSource
+{
+    ScreenFrame? Capture(int maxWidth, int quality);
+}
 public enum MouseButton { Left, Right }
 public enum UnlockOutcome { Done, NotInstalled, NotLocked, Failed }
 
@@ -52,6 +64,11 @@ public interface IPlatformActions
     void MouseMove(int dx, int dy);
     void MouseClick(MouseButton button);
     void MouseScroll(int amount);
+    /// <summary>Move o cursor para uma posição absoluta (x,y de 0 a 1 na tela toda).</summary>
+    void MouseMoveTo(double x, double y);
+    void MouseClickAt(double x, double y, MouseButton button);
+    void MouseButtonDown(double x, double y, MouseButton button);
+    void MouseButtonUp(double x, double y, MouseButton button);
     void Key(string key, IReadOnlyList<string> modifiers);
     void Text(string text);
 

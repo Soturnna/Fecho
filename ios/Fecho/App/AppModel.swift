@@ -81,6 +81,10 @@ final class AppModel {
     var uploads: [UploadItem] = []
     var filesGrantedUntil: Date?
 
+    var screenImage: UIImage?
+    var screenAspect: Double = 16.0 / 9.0
+    var streamingScreen = false
+
     let client = AgentClient.shared
 
     init() {
@@ -98,7 +102,13 @@ final class AppModel {
             Task { @MainActor in self?.handleEvent(event, data.value) }
         }
         await client.onDisconnect { [weak self] in
-            Task { @MainActor in self?.connection = .offline("A conexão caiu.") }
+            Task { @MainActor in
+                self?.connection = .offline("A conexão caiu.")
+                self?.streamingScreen = false
+            }
+        }
+        await client.onFrame { [weak self] data in
+            Task { @MainActor in self?.applyFrame(data) }
         }
         await connect()
     }

@@ -103,8 +103,16 @@ public static class CommandPolicy
         ["mouse.move"] = new(AuthLevel.Control, true),
         ["mouse.click"] = new(AuthLevel.Control, true),
         ["mouse.scroll"] = new(AuthLevel.Control, true),
+        ["mouse.moveto"] = new(AuthLevel.Control, true),
+        ["mouse.clickat"] = new(AuthLevel.Control, true),
+        ["mouse.down"] = new(AuthLevel.Control, true),
+        ["mouse.up"] = new(AuthLevel.Control, true),
         ["key"] = new(AuthLevel.Control, true),
         ["text"] = new(AuthLevel.Control, true),
+
+        // Ver a tela do PC (docs/SEGURANCA.md, seção 10)
+        ["screen.start"] = new(AuthLevel.Control, true),
+        ["screen.stop"] = new(AuthLevel.Control, true),
 
         // Arquivos (docs/SEGURANCA.md, seção 9)
         ["files.grant"] = new(AuthLevel.Unlock, false),
