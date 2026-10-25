@@ -62,6 +62,7 @@ public sealed class TrayContext : ApplicationContext
         menu.Items.Add(_devicesMenu);
         menu.Items.Add(new ToolStripMenuItem("Atividade recente…", null, (_, _) => ShowActivity()));
         menu.Items.Add(new ToolStripMenuItem("Abrir arquivos recebidos", null, (_, _) => OpenUploads()));
+        menu.Items.Add(BuildUnlockMenu());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_autostartItem);
         menu.Items.Add(new ToolStripMenuItem("Sair do Fecho", null, (_, _) => ExitThread()));
@@ -112,6 +113,37 @@ public sealed class TrayContext : ApplicationContext
             ["music"] = ("Música", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)),
         };
         return new FileService(roots, Path.Combine(downloads, "Fecho"));
+    }
+
+    /// <summary>Submenu da fase de testes do desbloqueio pela tela de login.</summary>
+    private ToolStripMenuItem BuildUnlockMenu()
+    {
+        var menu = new ToolStripMenuItem("Desbloqueio pelo iPhone");
+        menu.DropDownItems.Add(new ToolStripMenuItem("1. Instalar componente (admin)…", null, (_, _) =>
+        {
+            if (!CredProviderInstaller.HasEmbeddedDll())
+            {
+                MessageBox.Show("Esta versão não traz o componente de desbloqueio.", "Fecho",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            CredProviderInstaller.RunElevated(install: true);
+        }));
+        menu.DropDownItems.Add(new ToolStripMenuItem("2. Definir a senha do Windows…", null, (_, _) =>
+        {
+            using var form = new PasswordForm();
+            if (form.ShowDialog() == DialogResult.OK)
+                _icon.ShowBalloonTip(4000, "Fecho", "Senha guardada. Bloqueie o PC e teste pelo iPhone.", ToolTipIcon.Info);
+        }));
+        menu.DropDownItems.Add(new ToolStripSeparator());
+        menu.DropDownItems.Add(new ToolStripMenuItem("Remover a senha guardada", null, (_, _) =>
+        {
+            UnlockSecrets.Clear();
+            _icon.ShowBalloonTip(4000, "Fecho", "Senha removida.", ToolTipIcon.Info);
+        }));
+        menu.DropDownItems.Add(new ToolStripMenuItem("Remover o componente (admin)…", null, (_, _) =>
+            CredProviderInstaller.RunElevated(install: false)));
+        return menu;
     }
 
     private void OpenUploads()

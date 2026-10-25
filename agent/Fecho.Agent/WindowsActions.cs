@@ -27,7 +27,7 @@ public sealed class WindowsActions : IPlatformActions
         Name = Environment.MachineName,
         Os = "Windows " + Environment.OSVersion.Version.Build,
         Locked = _locked,
-        UnlockAvailable = false,
+        UnlockAvailable = CredProviderInstaller.IsRegistered() && UnlockSecrets.HasPassword(),
         Version = typeof(WindowsActions).Assembly.GetName().Version?.ToString(3) ?? "0.0.0",
     };
 
@@ -58,8 +58,36 @@ public sealed class WindowsActions : IPlatformActions
         using var p = Process.Start(new ProcessStartInfo(exe, args) { CreateNoWindow = true, UseShellExecute = false });
     }
 
-    /// <summary>O desbloqueio real chega com o Credential Provider (fase 4).</summary>
-    public UnlockOutcome Unlock() => _locked ? UnlockOutcome.NotInstalled : UnlockOutcome.NotLocked;
+    /// <summary>
+    /// Desbloqueia a tela de login entregando a senha (guardada com DPAPI) ao
+    /// componente de desbloqueio por um pipe local. A validação do Face ID já
+    /// foi feita no app antes de este comando chegar aqui.
+    /// </summary>
+    public UnlockOutcome Unlock()
+    {
+        if (!_locked) return UnlockOutcome.NotLocked;
+        if (!CredProviderInstaller.IsRegistered() || !UnlockSecrets.HasPassword())
+            return UnlockOutcome.NotInstalled;
+
+        var creds = UnlockSecrets.Load();
+        if (creds is null) return UnlockOutcome.Failed;
+
+        var (domain, user, password) = creds.Value;
+        try
+        {
+            return UnlockBridge.Send(domain, user, password) switch
+            {
+                BridgeResult.Sent => UnlockOutcome.Done,
+                BridgeResult.NotRunning => UnlockOutcome.NotInstalled,
+                _ => UnlockOutcome.Failed,
+            };
+        }
+        finally
+        {
+            password = new string('\0', password.Length);
+            GC.KeepAlive(password);
+        }
+    }
 
     // ---------- Áudio ----------
 

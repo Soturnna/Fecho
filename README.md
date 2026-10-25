@@ -39,10 +39,34 @@ vai no QR; se ele mudar, é preciso parear de novo.
 - [x] Fase 1 — Design das telas
 - [x] Fase 2 — Agente: pareamento, energia, mídia, volume, mouse, teclado, área de transferência
 - [x] Fase 3 — App do iPhone conectado, com Face ID e Atalhos
-- [ ] Fase 4 — Credential Provider: desbloqueio real da tela
+- [x] Fase 4 — Credential Provider: desbloqueio real da tela (em testes)
 - [x] Fase 5 — Troca de arquivos
 - [x] Ver a tela do PC e controlar por toque
 - [ ] Fase 6 — Proximidade por Bluetooth e Apple Watch
+
+## Desbloqueio pela tela de login (fase 4, em testes)
+
+O componente que desbloqueia a tela é uma DLL (Credential Provider) que o
+Windows carrega na tela de login. Ele **acrescenta** uma opção; a senha e o
+PIN continuam funcionando normalmente.
+
+Para ativar (no menu do ícone do Fecho → "Desbloqueio pelo iPhone"):
+
+1. **Instalar componente (admin)** — aceite o aviso de administrador. É criado
+   um ponto de restauração antes de qualquer mudança.
+2. **Definir a senha do Windows** — fica guardada só no PC, cifrada por DPAPI.
+3. Bloqueie o PC (Win+L) e toque em **Desbloquear com Face ID** no iPhone.
+
+### Recuperação do desbloqueio
+
+Se algo der errado na tela de login, você **nunca** fica preso: use a senha
+ou o PIN normalmente. Para remover o componente:
+
+- Pelo Fecho: menu → "Desbloqueio pelo iPhone" → "Remover o componente".
+- Ou, se o Windows não iniciar direito, entre no **Modo de Segurança**
+  (que não carrega provedores de terceiros) e rode `Fecho.exe` →
+  "Remover o componente", ou restaure o ponto de restauração criado na
+  instalação.
 
 ## Rodar os testes localmente
 

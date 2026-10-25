@@ -20,6 +20,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Compilar o componente de desbloqueio (C++)
+        run: |
+          cmake -S credprovider -B credprovider/build -A x64
+          cmake --build credprovider/build --config Release
+          New-Item -ItemType Directory -Force -Path agent/Fecho.Agent/Resources | Out-Null
+          Copy-Item credprovider/build/Release/FechoCredentialProvider.dll agent/Fecho.Agent/Resources/FechoCredentialProvider.dll -Force
+          Get-Item agent/Fecho.Agent/Resources/FechoCredentialProvider.dll | Select-Object Name,Length
+
       - name: Testes de segurança do protocolo
         run: dotnet run --project agent/Fecho.Core.Tests -c Release
 

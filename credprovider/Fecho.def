@@ -1,0 +1,4 @@
+LIBRARY FechoCredentialProvider
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE

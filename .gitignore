@@ -15,3 +15,7 @@ DerivedData/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Credential Provider (gerados)
+credprovider/build/
+agent/Fecho.Agent/Resources/

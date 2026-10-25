@@ -161,11 +161,21 @@ Os últimos eventos aparecem em "Atividade recente" no app.
 - O quadro e a largura são limitados; sob carga, o PC descarta quadros em vez
   de acumular atraso.
 
+### 11. Desbloqueio da tela de login
+
+- A senha do Windows fica **só no PC**, cifrada com DPAPI (conta do usuário).
+  O iPhone nunca a recebe nem a envia.
+- O desbloqueio exige a chave de **desbloqueio** (Face ID a cada vez). O PC só
+  age depois de validar essa assinatura.
+- O agente (como usuário) entrega a senha ao componente de login por um
+  **named pipe local** restrito ao usuário bloqueado e ao SYSTEM, com um
+  segredo por sessão. Nada trafega pela rede.
+- O componente **acrescenta** uma opção na tela de login; nunca substitui a
+  senha ou o PIN, então uma falha dele não tranca o PC. Há desinstalador e
+  ponto de restauração; o Modo de Segurança não carrega o componente.
+
 ## O que ainda não está implementado
 
-- **Desbloqueio real da tela** (Credential Provider): fase 4. Até lá, o agente
-  valida a assinatura do pedido de desbloqueio e responde que o componente
-  ainda não está instalado.
 - **Proximidade por Bluetooth**: fase 6.
 - **Apple Watch**: o relógio não tem acesso às chaves do iPhone. Ele vai pedir
   ao iPhone para assinar (fase 6).
