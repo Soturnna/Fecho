@@ -92,3 +92,31 @@ jobs:
         with:
           name: log-xcodebuild
           path: ios/build.log
+
+  versao:
+    name: Publicar versão para download
+    needs: [agente-windows, app-iphone]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+
+      - name: Criar versão com o .exe e o .ipa
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" \
+            dist/Fecho-Windows/Fecho.exe \
+            dist/Fecho-iPhone/Fecho.ipa \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Fecho — build ${{ github.run_number }}" \
+            --latest \
+            --notes "Compilado automaticamente a partir de ${{ github.sha }}.
+
+          - **Fecho.exe**: agente do Windows. Rode no PC e marque só Redes privadas no aviso do firewall.
+          - **Fecho.ipa**: app do iPhone sem assinatura. Instale pelo iloader."
