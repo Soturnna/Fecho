@@ -10,7 +10,10 @@ struct FechoApp: App {
             RootView()
                 .environment(model)
                 .tint(.green)
-                .task { await model.start() }
+                .task {
+                    WatchBridge.shared.activate()
+                    await model.start()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active, model.pairing != nil, !model.isConnected {
                         Task { await model.connect() }

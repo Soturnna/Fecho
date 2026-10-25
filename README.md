@@ -42,7 +42,8 @@ vai no QR; se ele mudar, é preciso parear de novo.
 - [x] Fase 4 — Credential Provider: desbloqueio real da tela (em testes)
 - [x] Fase 5 — Troca de arquivos
 - [x] Ver a tela do PC e controlar por toque
-- [ ] Fase 6 — Proximidade por Bluetooth e Apple Watch
+- [x] Widgets, Central de Controle e app do Apple Watch (via conta paga; no sideload grátis pode não instalar)
+- [ ] Fase 6 — Proximidade por Bluetooth
 
 ## Desbloqueio pela tela de login (fase 4, em testes)
 
