@@ -1,0 +1,94 @@
+name: Compilar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  agente-windows:
+    name: Agente do Windows (testes + .exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Testes de segurança do protocolo
+        run: dotnet run --project agent/Fecho.Core.Tests -c Release
+
+      - name: Publicar Fecho.exe
+        run: dotnet publish agent/Fecho.Agent/Fecho.Agent.csproj -c Release -o out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fecho-Windows
+          path: out/Fecho.exe
+          if-no-files-found: error
+
+  app-iphone:
+    name: App do iPhone (.ipa sem assinatura)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Escolher o Xcode mais novo
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "SDK do iOS: $SDK"
+          if [ "${SDK%%.*}" -lt 26 ]; then
+            echo "::error::O app usa APIs do iOS 26 (Liquid Glass). Este runner não tem o SDK 26."
+            exit 1
+          fi
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Gerar projeto
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Compilar
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Fecho.xcodeproj \
+            -scheme Fecho \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | tee build.log | grep -E "error:|warning: .*Fecho/|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/Fecho.app
+
+      - name: Empacotar .ipa
+        working-directory: ios
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Fecho.app Payload/
+          zip -qry Fecho.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fecho-iPhone
+          path: ios/Fecho.ipa
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: log-xcodebuild
+          path: ios/build.log

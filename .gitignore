@@ -1,0 +1,17 @@
+# .NET
+bin/
+obj/
+out/
+*.user
+
+# Xcode / XcodeGen
+ios/Fecho.xcodeproj/
+ios/build/
+ios/Payload/
+*.ipa
+xcuserdata/
+DerivedData/
+
+# Sistema
+.DS_Store
+Thumbs.db

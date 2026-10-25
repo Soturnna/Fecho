@@ -1,0 +1,32 @@
+name: Fecho
+options:
+  bundleIdPrefix: com.soturnna
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Fecho:
+    type: application
+    platform: iOS
+    sources:
+      - path: Fecho
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.soturnna.fecho
+        PRODUCT_NAME: Fecho
+        INFOPLIST_FILE: Fecho/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_EMIT_LOC_STRINGS: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+schemes:
+  Fecho:
+    build:
+      targets:
+        Fecho: all
