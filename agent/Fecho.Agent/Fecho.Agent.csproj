@@ -9,12 +9,13 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Fecho.Agent</RootNamespace>
     <AssemblyName>Fecho</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
