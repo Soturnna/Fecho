@@ -24,6 +24,20 @@ public static class AgentCertificate
         return req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10));
     }
 
+    /// <summary>
+    /// Versão pronta para o servidor TLS. No Windows, o SChannel não aceita
+    /// chave que existe só na memória; por isso o certificado passa por um PFX.
+    /// O agente real usa o certificado guardado no repositório do Windows.
+    /// </summary>
+    public static X509Certificate2 CreateForServer()
+    {
+        using var cert = Create();
+        if (!OperatingSystem.IsWindows()) return new X509Certificate2(cert.Export(X509ContentType.Pkcs12));
+        var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18));
+        return new X509Certificate2(cert.Export(X509ContentType.Pkcs12, password), password,
+            X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable);
+    }
+
     /// <summary>SHA-256 do certificado em DER, em hexadecimal minúsculo.</summary>
     public static string Fingerprint(X509Certificate2 cert) =>
         Convert.ToHexString(SHA256.HashData(cert.RawData)).ToLowerInvariant();

@@ -29,6 +29,8 @@ foreach (var t in tests)
         failed++;
         var inner = ex is TargetInvocationException tie ? tie.InnerException! : ex;
         Console.WriteLine($"  FALHA {t.Name[2..]}: {inner.Message}");
+        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
+            Console.WriteLine($"::error title=Teste {t.Name[2..]}::{inner.GetType().Name}: {inner.Message.Replace('\n', ' ')}");
     }
 }
 Console.WriteLine($"\n{tests.Count - failed}/{tests.Count} testes passaram.");
@@ -337,7 +339,7 @@ public static class Tests
         var pairing = new PairingManager(clock);
         var audit = new AuditLog(clock);
         var actions = new FakeActions();
-        var cert = AgentCertificate.Create();
+        var cert = AgentCertificate.CreateForServer();
         var fingerprint = AgentCertificate.Fingerprint(cert);
         var port = 47000 + Random.Shared.Next(1000);
         await using var server = new AgentServer(
@@ -371,7 +373,7 @@ public static class Tests
         var clock = new SystemClock();
         var registry = new DeviceRegistry(new InMemoryDeviceStorage());
         var audit = new AuditLog(clock);
-        var cert = AgentCertificate.Create();
+        var cert = AgentCertificate.CreateForServer();
         var port = 48000 + Random.Shared.Next(1000);
         await using var server = new AgentServer(
             new AgentServerOptions { Port = port, Certificate = cert, AgentId = "a" },

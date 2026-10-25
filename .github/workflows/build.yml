@@ -14,9 +14,9 @@ jobs:
     name: Agente do Windows (testes + .exe)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.x"
 
@@ -26,7 +26,7 @@ jobs:
       - name: Publicar Fecho.exe
         run: dotnet publish agent/Fecho.Agent/Fecho.Agent.csproj -c Release -o out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Fecho-Windows
           path: out/Fecho.exe
@@ -36,7 +36,7 @@ jobs:
     name: App do iPhone (.ipa sem assinatura)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Escolher o Xcode mais novo
         run: |
@@ -81,13 +81,13 @@ jobs:
           cp -R build/Build/Products/Release-iphoneos/Fecho.app Payload/
           zip -qry Fecho.ipa Payload
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: Fecho-iPhone
           path: ios/Fecho.ipa
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: log-xcodebuild
